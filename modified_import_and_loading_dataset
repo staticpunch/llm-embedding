@@ -1,0 +1,61 @@
+# This script is based on the modification from https://github.com/huggingface/transformers
+import logging
+import os
+import torch
+import random
+import sys
+import json
+from dataclasses import dataclass, field
+from typing import Optional
+
+import datasets
+import nltk  # Here to have a nice missing dependency error message early on
+
+import transformers
+from filelock import FileLock
+from InstructorEmbedding import INSTRUCTOR
+from InstructorEmbedding import LlamaForSequenceEmbedding
+from transformers import (
+    AutoTokenizer,
+    DataCollatorForSeq2Seq,
+    HfArgumentParser,
+    MBart50Tokenizer,
+    MBart50TokenizerFast,
+    MBartTokenizer,
+    MBartTokenizerFast,
+    Seq2SeqTrainer,
+    Seq2SeqTrainingArguments,
+    BitsAndBytesConfig,
+    set_seed,
+)
+from transformers.utils import get_full_repo_name
+from peft import LoraConfig, TaskType, get_peft_model
+
+from transformers.trainer_utils import get_last_checkpoint
+from transformers.utils import check_min_version, is_offline_mode
+from torch.utils.data import Dataset, SequentialSampler
+from torch.utils.data.distributed import DistributedSampler
+from transformers.utils.versions import require_version
+from datasets import Dataset, DatasetDict, load_dataset
+
+
+if __name__ == "__main__":
+    # Set seed before initializing model.
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        cache_dir=model_args.cache_dir,
+        use_fast=model_args.use_fast_tokenizer,
+        revision=model_args.model_revision,
+        use_auth_token=True if model_args.use_auth_token else None,
+    )
+    tokenizer.add_eos_token = True
+    tokenizer.pad_token_id = tokenizer.bos_token_id
+
+    set_seed(training_args.seed)
+    ## NOTE: modify data loading
+    # with open(os.path.join(model_args.cache_dir, 'medi-data.json')) as f:
+    #     train_examples_raw = json.load(f)
+    assert any([extension in data_args.train_file for extension in ["json", "jsonl"]])
+    if any([extension in data_args.train_file for extension in ["json", "jsonl"]]):
+        train_examples_raw = load_dataset("json", data_files=data_args.train_file, split="train").to_list()
+    ## END NOTE
